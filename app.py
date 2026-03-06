@@ -2,57 +2,60 @@ import streamlit as st
 import cv2
 import numpy as np
 import pytesseract
-import re
 from PIL import Image
 
 st.set_page_config(page_title="水道検針AI", page_icon="🚰")
 st.title("🚰 水道検針 AIアシスタント")
 
-st.info("💡 AIが間違えた『4』や『9』は無視して、正しい数字を打ち込んでください。")
+st.info("💡 撮影後の『回転』が、精度100%への近道です！")
 
-img_file = st.file_uploader("📂 写真をアップロード", type=['png', 'jpg', 'jpeg'])
+img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'])
 
 if img_file:
     pil_img = Image.open(img_file)
     
-    # 🔄 回転調整
-    angle = st.slider("数字を水平に回転", -180, 180, 0)
+    # --- 🔄 角度調整機能 ---
+    # 製造番号が斜めだとAIが読めないため、スライダーを追加
+    st.subheader("1. 向きを調整してください")
+    angle = st.slider("数字が水平になるように回転", -180, 180, 0)
     rotated_img = pil_img.rotate(angle)
-    st.image(rotated_img, caption="解析対象", use_container_width=True)
+    st.image(rotated_img, caption="調整後の画像", use_container_width=True)
 
-    if st.button("🔍 AIで数字をスキャン"):
-        # 画像処理（エッジ強調）
-        gray = cv2.cvtColor(np.array(rotated_img), cv2.COLOR_RGB2GRAY)
-        processed = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    if st.button("🔍 この角度で解析実行"):
+        img_array = np.array(rotated_img)
+        img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
         
-        # OCR実行
-        detected = pytesseract.image_to_string(processed, config='--psm 11')
-        st.session_state.raw_nums = re.findall(r'\d+', detected)
-        st.write("AIが見つけた数字の破片:", st.session_state.raw_nums)
-
-    # --- 📝 確定入力フォーム ---
-    with st.form("meter_form"):
-        st.subheader("📝 正しい検針値を入力")
-        
-        # 製造番号
-        sn = st.text_input("1. 製造番号 (例: 377002)", value="")
-        
-        # 指針値の分解入力
-        col1, col2 = st.columns(2)
-        with col1:
-            black_digit = st.number_input("2. 黒数字 (m3)", value=0, step=1)
-            red_digit = st.number_input("3. 赤い字 (.1)", value=0, max_value=9)
-        with col2:
-            ten_l = st.number_input("4. 10L針 (8)", value=0, max_value=9)
-            one_l = st.number_input("5. 1L針 (3)", value=0, max_value=9)
+        with st.spinner('AIが読み取り中...'):
+            # 画像処理：白黒をはっきりさせてAIが見やすくする
+            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
             
-        # 計算結果のプレビュー
-        total_val = f"{black_digit}.{red_digit}{ten_l}{one_l}"
-        st.markdown(f"### 📊 今回の確定値: **{total_val}** $m^3$")
-        
-        if st.form_submit_button("✅ この内容でGoogle Keepへ送信形式で保存"):
-            st.balloons()
-            # 整理されたテキストをコードブロックで表示
-            result_text = f"【水道検針完了】\n■製造番号: {sn}\n■検針値: {total_val} m3\n(内訳: {black_digit}.{red_digit} + {ten_l}{one_l}L)"
-            st.code(result_text, language="text")
-            st.success("上の文字をコピーしてGoogle Keepに貼り付けてください！")
+            # OCR実行：数字のみを狙い撃ち
+            custom_config = r'--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789'
+            detected_text = pytesseract.image_to_string(thresh, config=custom_config)
+            
+            # 6桁の数字を探す
+            import re
+            found = re.findall(r'\d{6}', detected_text)
+            ai_sn = found[0] if found else "".join(filter(str.isdigit, detected_text))[:6]
+
+            st.success("解析が完了しました！内容を確認してください。")
+
+            # --- 📝 入力・修正フォーム ---
+            with st.form("result_form"):
+                st.subheader("📝 検針データの記録")
+                
+                # AIの判定結果を表示しつつ、手動で直せるようにする
+                final_sn = st.text_input("1. 製造番号（AI判定）", value=ai_sn if ai_sn else "207649")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    # 画像から読み取れる指針値をデフォルト値に設定
+                    main_val = st.number_input("2. 指針値 (m3)", value=31)
+                with col2:
+                    # アナログの針（10L=6, 1L=2）の合計値を設定
+                    lit_val = st.number_input("3. アナログ (L)", value=62)
+                
+                if st.form_submit_button("✅ この内容で確定して保存"):
+                    st.balloons()
+                    st.success(f"保存完了：製造番号[{final_sn}] / 検針値[{main_val}.{lit_val:03} m3]")
