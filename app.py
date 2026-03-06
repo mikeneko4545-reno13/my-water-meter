@@ -5,7 +5,7 @@ import io
 
 # --- 1. APIと通信の設定 ---
 # あなたのキーをここに貼り付けてください
-GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" 
+GOOGLE_API_KEY = "AIzaSyChDJ1Ai_DSioph8ZYC8teioO718uROmKA" 
 
 # 通信方式を安定した 'rest' に固定
 genai.configure(api_key=GOOGLE_API_KEY, transport='rest')
