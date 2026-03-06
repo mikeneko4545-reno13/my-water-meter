@@ -32,24 +32,25 @@ if img_file:
             prompt = """
             # --- 🧠 AIへの指示（プロンプトをより具体的に！） ---
             prompt = """
-            あなたは超一流の水道検針員です。画像から数値を【正確に】読み取ってください。
+            # --- 🧠 AIへの指示（エラー防止版） ---
+            prompt = """
+            Read the water meter values accurately as a professional inspector.
             
-            【読み取りのルール】
-            - 黒い回転数字（m3単位）: 左側の大きな5桁（または4桁）の数字です。
-            - 赤い回転数字（0.1の位）: 黒い数字の右隣にある、赤い枠の数字1桁です。
-            - 10Lの赤い針（0.01の位）: 右下にある小さな円形メーターの針が指す数字です。
-            - 1Lの赤い針（0.001の位）: さらに右下にある、一番小さな円形メーターの針が指す数字です。
+            RULES:
+            - Black digits: Main reading (m3).
+            - Red digit: The single digit to the right of black digits (0.1).
+            - 10L dial: The analog needle for 0.01.
+            - 1L dial: The smallest analog needle for 0.001.
             
-            【注意】
-            - 金属部分に彫られた「製造番号」は、指針値ではないので絶対に無視してください。
-            - 繰り上がり（数字が半分しか見えない場合）は、針の位置から判断してください。
-
-            【回答形式】※必ずこの形式を守ってください
-            黒数字:xxxx
-            赤数字:x
-            10L針:x
-            1L針:x
+            Ignore engraved serial numbers.
+            Focus on the rotating wheels and needles.
             
+            FORMAT (Return this format only):
+            Black:xxxx
+            Red:x
+            10L:x
+            1L:x
+            """
 
             # AIに解析を依頼
             response = model.generate_content([prompt, {'mime_type': 'image/jpeg', 'data': img_data}])
