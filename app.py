@@ -3,13 +3,12 @@ import google.generativeai as genai
 from PIL import Image
 import io
 
-# --- 🔑 Gemini APIの設定（エラー対策済み） ---
-# ここに先ほどのキーを貼り付けてください
-GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" 
+# --- 🔑 Gemini APIの設定（エラー修正：呼び名をシンプルに） ---
+GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dYー" # ここはそのまま
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# 'models/' をつけるのが NotFound エラーを消す魔法です
-model = genai.GenerativeModel('models/gemini-1.5-flash')
+# 'models/' を取って、シンプルに 'gemini-1.5-flash' にします
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
 st.title("🤖 Gemini 3 搭載・高精度検針")
