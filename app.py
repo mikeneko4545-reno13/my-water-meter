@@ -8,59 +8,51 @@ from PIL import Image
 st.set_page_config(page_title="水道検針AI", page_icon="🚰")
 st.title("🚰 水道検針 AIアシスタント")
 
-st.info("💡 写真から読み取った数字だけを表示します。固定値（207649など）は廃止しました。")
+st.info("💡 AIが間違えた『4』や『9』は無視して、正しい数字を打ち込んでください。")
 
-# 写真のアップロード
-img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'], key="meter_loader")
+img_file = st.file_uploader("📂 写真をアップロード", type=['png', 'jpg', 'jpeg'])
 
 if img_file:
-    # 新しい写真が読み込まれたら、以前の解析結果をクリアする（ここが重要）
     pil_img = Image.open(img_file)
-    img_array = np.array(pil_img)
-    img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
     
-    # 画像の向き調整
-    angle = st.slider("数字が水平になるよう調整", -180, 180, 0)
+    # 🔄 回転調整
+    angle = st.slider("数字を水平に回転", -180, 180, 0)
     rotated_img = pil_img.rotate(angle)
     st.image(rotated_img, caption="解析対象", use_container_width=True)
 
-    if st.button("🔍 AIで数字を抽出する"):
-        with st.spinner('写真から数字を探しています...'):
-            # 画像処理
-            gray = cv2.cvtColor(np.array(rotated_img), cv2.COLOR_RGB2GRAY)
-            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-            
-            # OCR実行
-            custom_config = r'--oem 3 --psm 11'
-            detected_text = pytesseract.image_to_string(thresh, config=custom_config)
-            
-            # 数字だけをすべて抽出してリストにする
-            all_numbers = re.findall(r'\d+', detected_text)
-            
-            # 抽出された数字の整理
-            st.session_state.found_numbers = all_numbers
-            st.success(f"解析完了！ {len(all_numbers)} 個の数字の候補が見つかりました。")
-
-    # --- 📝 抽出された数字から選ぶ・直す ---
-    if 'found_numbers' in st.session_state and st.session_state.found_numbers:
-        st.subheader("📝 読み取り結果の確認")
-        st.write("AIが見つけた数字リスト:", st.session_state.found_numbers)
+    if st.button("🔍 AIで数字をスキャン"):
+        # 画像処理（エッジ強調）
+        gray = cv2.cvtColor(np.array(rotated_img), cv2.COLOR_RGB2GRAY)
+        processed = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
         
-        with st.form("record_form"):
-            # リストの最初の方にある数字を、一旦自動で割り振ります（固定値は使いません）
-            numbers = st.session_state.found_numbers
-            
-            # 数字が見つからなかった場合は空欄にします
-            def_sn = numbers[0] if len(numbers) > 0 else ""
-            def_m3 = numbers[1] if len(numbers) > 1 else ""
-            def_lit = numbers[2] if len(numbers) > 2 else ""
+        # OCR実行
+        detected = pytesseract.image_to_string(processed, config='--psm 11')
+        st.session_state.raw_nums = re.findall(r'\d+', detected)
+        st.write("AIが見つけた数字の破片:", st.session_state.raw_nums)
 
-            sn = st.text_input("1. 製造番号", value=def_sn, placeholder="207649など")
-            main_val = st.text_input("2. 指針値 (m3)", value=def_m3, placeholder="0368.7など")
-            lit_val = st.text_input("3. アナログ (L)", value=def_lit, placeholder="85など")
+    # --- 📝 確定入力フォーム ---
+    with st.form("meter_form"):
+        st.subheader("📝 正しい検針値を入力")
+        
+        # 製造番号
+        sn = st.text_input("1. 製造番号 (例: 377002)", value="")
+        
+        # 指針値の分解入力
+        col1, col2 = st.columns(2)
+        with col1:
+            black_digit = st.number_input("2. 黒数字 (m3)", value=0, step=1)
+            red_digit = st.number_input("3. 赤い字 (.1)", value=0, max_value=9)
+        with col2:
+            ten_l = st.number_input("4. 10L針 (8)", value=0, max_value=9)
+            one_l = st.number_input("5. 1L針 (3)", value=0, max_value=9)
             
-            if st.form_submit_button("✅ この内容で確定"):
-                st.balloons()
-                st.code(f"【記録】番号:{sn} / 指針:{main_val} / アナログ:{lit_val}")
-    elif img_file:
-        st.warning("まだ解析されていません。『AIで数字を抽出する』ボタンを押してください。")
+        # 計算結果のプレビュー
+        total_val = f"{black_digit}.{red_digit}{ten_l}{one_l}"
+        st.markdown(f"### 📊 今回の確定値: **{total_val}** $m^3$")
+        
+        if st.form_submit_button("✅ この内容でGoogle Keepへ送信形式で保存"):
+            st.balloons()
+            # 整理されたテキストをコードブロックで表示
+            result_text = f"【水道検針完了】\n■製造番号: {sn}\n■検針値: {total_val} m3\n(内訳: {black_digit}.{red_digit} + {ten_l}{one_l}L)"
+            st.code(result_text, language="text")
+            st.success("上の文字をコピーしてGoogle Keepに貼り付けてください！")
