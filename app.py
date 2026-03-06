@@ -2,13 +2,13 @@ import streamlit as st
 import cv2
 import numpy as np
 import pytesseract
-import re  # 🌟 数字を探すための特殊な道具
+import re
 from PIL import Image
 
 st.set_page_config(page_title="水道検針AI", page_icon="🚰")
-st.title("🚰 水道メーターAI検針 (6桁抽出版)")
+st.title("🚰 水道メーターAI検針 (画像強化版)")
 
-st.write("AIが動きましたね！次は『6桁の製造番号』だけを狙い撃ちします。")
+st.write("反射や影を消す『画像処理』を強化しました。本気で当てにいきます！")
 
 img_file = st.file_uploader("📂 スマホの写真から選ぶ", type=['png', 'jpg', 'jpeg'])
 camera_file = st.camera_input("📸 今すぐカメラで撮る")
@@ -18,38 +18,39 @@ input_file = img_file if img_file is not None else camera_file
 if input_file:
     pil_img = Image.open(input_file)
     img_array = np.array(pil_img)
-    
-    # AIが読みやすいように画像を加工（白黒＆くっきり）
     img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-    # 少しぼかしを入れてノイズを消す
-    gray = cv2.medianBlur(gray, 3)
     
-    st.image(pil_img, caption="解析対象", use_container_width=True)
-    
-    with st.spinner('6桁の製造番号を探しています...'):
-        # 文字読み取り
-        detected_text = pytesseract.image_to_string(gray, config='--psm 11')
+    with st.spinner('画像をきれいに掃除して解析中...'):
+        # 🌟 プロの画像処理
+        # 1. グレーにして
+        gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+        # 2. 2倍に拡大（文字を認識しやすくする）
+        gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+        # 3. 二値化（影を飛ばして白黒はっきりさせる）
+        gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
         
-        # 🌟 ここが魔法：6桁の数字だけを抜き出す
-        # (377002 のような連続した6文字の数字を探す)
+        # 画面にAIが見ている「加工後の画像」を表示（デバッグ用）
+        st.image(gray, caption="AIが今見ている視界（白黒加工後）", use_container_width=True)
+        
+        # 🌟 OCR実行（数字のみを狙う設定に変えました）
+        # configの指定で、数字と一部の記号以外を無視させます
+        custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789'
+        detected_text = pytesseract.image_to_string(gray, config=custom_config)
+        
+        # 6桁の数字を探す
         found_numbers = re.findall(r'\d{6}', detected_text)
         
         if found_numbers:
-            # 最初に見つかった6桁を製造番号とする
             sn = found_numbers[0]
-            st.success(f"製造番号を見つけました！")
+            st.success(f"製造番号を特定しました！")
         else:
-            # 6桁で見つからない場合は、数字を全部つなげてから上から6桁取る
             nums_only = "".join(filter(str.isdigit, detected_text))
-            sn = nums_only[:6] if len(nums_only) >= 6 else "読み取り中..."
+            sn = nums_only[:6] if len(nums_only) >= 6 else "まだノイズが多いです..."
 
         st.header(f"📊 判定された製造番号: {sn}")
         
-        with st.expander("🔍 AIが見た生のデータ（中身の確認）"):
-            st.write("AIが見つけたすべての文字:")
-            st.code(detected_text)
-            st.write("抽出された数字候補:", found_numbers)
+        with st.expander("🔍 AIが読み取った生の数字データ"):
+            st.write(f"生データ: {detected_text}")
 
         if st.button("この番号で保存する"):
             st.balloons()
