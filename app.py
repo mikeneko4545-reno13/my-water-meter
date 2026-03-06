@@ -3,17 +3,18 @@ import google.generativeai as genai
 from PIL import Image
 import io
 
-# --- 🔑 Gemini APIの設定 ---
-GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY"
+# --- 🔑 Gemini APIの設定（エラー対策済み） ---
+# ここに先ほどのキーを貼り付けてください
+GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" 
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# モデル名を 'models/gemini-1.5-flash' に変更（これが一番確実です）
+# 'models/' をつけるのが NotFound エラーを消す魔法です
 model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
 st.title("🤖 Gemini 3 搭載・高精度検針")
 
-st.info("💡 1L針から順番に読み取る「渦巻きロジック」をAIに教えてあります！")
+st.info("💡 あなたの『渦巻きロジック』をAIに完全伝承しました！")
 
 img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'])
 
@@ -27,33 +28,37 @@ if img_file:
             pil_img.save(img_byte_arr, format='JPEG')
             img_data = img_byte_arr.getvalue()
 
-            # AIへの詳細な指示
+            # --- 🧠 AIへの最強の指示（プロンプト） ---
             prompt = """
             You are a professional water meter reader. 
-            Analyze the image and extract the following 4 values:
-            1. 1L Dial (Smallest red needle): 0-9
-            2. 10L Dial (Red needle): 0-9
-            3. Red Digit (0.1 position): 0-9
-            4. Black Digits (Main m3 reading): 4 or 5 digits
+            Analyze the image carefully and extract exactly these 4 values using 'Vortex Logic' (Smallest to Largest):
 
-            Rules:
-            - Ignore the engraved serial number.
-            - Focus on the circular dials and the rotating numbers.
-            - If a digit is between two numbers, pick the smaller one unless it's a clear carry-over.
+            1. 1L Dial (Smallest analog needle at the bottom right)
+            2. 10L Dial (The other analog needle)
+            3. Red Digit (The first digit to the right of the main display, 0.1 position)
+            4. Black Digits (The main large counter in m3)
 
-            Format your response exactly like this:
-            Black: [number]
-            Red: [number]
-            10L: [number]
-            1L: [number]
+            IMPORTANT RULES:
+            - IGNORE the engraved Serial Number (it often looks like 377002 or 207649).
+            - Focus only on the rotating digits and needles.
+            - If a digit is between numbers, choose the lower one.
+
+            FORMAT (Return this only):
+            Black:[number]
+            Red:[number]
+            10L:[number]
+            1L:[number]
             """
 
-            response = model.generate_content([prompt, {'mime_type': 'image/jpeg', 'data': img_data}])
-            st.markdown("### 🤖 AIの判定結果")
-            st.code(response.text)
-            st.success("↑この結果を下のフォームに入力・確認してください。")
+            try:
+                response = model.generate_content([prompt, {'mime_type': 'image/jpeg', 'data': img_data}])
+                st.markdown("### 🤖 AIの判定結果")
+                st.code(response.text)
+                st.success("スキャン成功！結果を下のフォームで確認してください。")
+            except Exception as e:
+                st.error(f"エラーが発生しました: {e}")
 
-# --- 📝 最終確認フォーム（渦巻きロジック） ---
+# --- 📝 確定フォーム（渦巻きロジック） ---
 with st.form("final_confirm"):
     st.subheader("📝 最終確認（小さい単位から順に）")
     col1, col2 = st.columns(2)
@@ -64,9 +69,10 @@ with st.form("final_confirm"):
         v_red = st.number_input("3. 【赤い数字】", value=0, max_value=9)
         v_black = st.number_input("4. 【黒い数字】", value=0, step=1)
     
+    # 計算式
     final_val = f"{v_black}.{v_red}{v10}{v1}"
-    st.write(f"## 📊 確定指針: **{final_val}** m³")
+    st.write(f"## 📊 確定指針: **{final_val}** $m^3$")
     
-    if st.form_submit_button("✅ 確定して保存用テキスト作成"):
+    if st.form_submit_button("✅ 確定して保存"):
         st.balloons()
         st.code(f"【水道検針データ】\n指針：{final_val} m3", language="text")
