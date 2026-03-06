@@ -2,58 +2,65 @@ import streamlit as st
 import cv2
 import numpy as np
 import pytesseract
+import re
 from PIL import Image
 
 st.set_page_config(page_title="水道検針AI", page_icon="🚰")
-st.title("🚰 水道検針プロ・アシスタント")
+st.title("🚰 水道検針 AIアシスタント")
 
-st.info("💡 読み取りたい場所（デジタル文字か、真鍮の番号か）を選んでから解析してください。")
+st.info("💡 写真から読み取った数字だけを表示します。固定値（207649など）は廃止しました。")
 
-img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'])
+# 写真のアップロード
+img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'], key="meter_loader")
 
 if img_file:
+    # 新しい写真が読み込まれたら、以前の解析結果をクリアする（ここが重要）
     pil_img = Image.open(img_file)
+    img_array = np.array(pil_img)
+    img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
     
-    # --- 🎯 解析モードの選択 ---
-    mode = st.radio("何を読み取りますか？", 
-                    ["製造番号 (真鍮)", "デジタル数字 (0368.7)", "アナログ針 (85)"])
-
-    # --- 🔄 画像の回転 ---
+    # 画像の向き調整
     angle = st.slider("数字が水平になるよう調整", -180, 180, 0)
     rotated_img = pil_img.rotate(angle)
-    st.image(rotated_img, caption="この画像を解析します", use_container_width=True)
+    st.image(rotated_img, caption="解析対象", use_container_width=True)
 
-    if st.button("🔍 AI解析実行"):
-        img_array = np.array(rotated_img)
-        gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
-        
-        # --- モード別に画像処理を変える（これが精度の鍵です） ---
-        if mode == "デジタル数字 (0368.7)":
-            # デジタル数字はコントラストを極限まで上げる
-            processed = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-            config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789.'
-        else:
-            # 製造番号や針は輪郭を強調する
-            processed = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
-            config = r'--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789'
+    if st.button("🔍 AIで数字を抽出する"):
+        with st.spinner('写真から数字を探しています...'):
+            # 画像処理
+            gray = cv2.cvtColor(np.array(rotated_img), cv2.COLOR_RGB2GRAY)
+            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
             
-        st.image(processed, caption="AIが今見ている視界", use_container_width=True)
-        detected = pytesseract.image_to_string(processed, config=config)
-        st.session_state.last_result = "".join(filter(str.isprintable, detected)).strip()
+            # OCR実行
+            custom_config = r'--oem 3 --psm 11'
+            detected_text = pytesseract.image_to_string(thresh, config=custom_config)
+            
+            # 数字だけをすべて抽出してリストにする
+            all_numbers = re.findall(r'\d+', detected_text)
+            
+            # 抽出された数字の整理
+            st.session_state.found_numbers = all_numbers
+            st.success(f"解析完了！ {len(all_numbers)} 個の数字の候補が見つかりました。")
 
-    # --- 📝 修正と確定（ここで 0368.7 や 85 を入力） ---
-    with st.form("confirm_form"):
-        st.subheader("📝 検針データの最終確認")
+    # --- 📝 抽出された数字から選ぶ・直す ---
+    if 'found_numbers' in st.session_state and st.session_state.found_numbers:
+        st.subheader("📝 読み取り結果の確認")
+        st.write("AIが見つけた数字リスト:", st.session_state.found_numbers)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            sn = st.text_input("1. 製造番号", value="207649")
-            main_val = st.text_input("2. デジタル指針", value="0368.7")
-        with col2:
-            lit_val = st.number_input("3. アナログ値", value=85)
+        with st.form("record_form"):
+            # リストの最初の方にある数字を、一旦自動で割り振ります（固定値は使いません）
+            numbers = st.session_state.found_numbers
             
-        if st.form_submit_button("✅ 確定して履歴へ保存"):
-            st.balloons()
-            st.success(f"保存しました: {main_val} m3 / {lit_val} L")
-            # Google Keep用のテキスト作成
-            st.code(f"【水道検針】\n番号: {sn}\n指針: {main_val} m3\nアナログ: {lit_val} L")
+            # 数字が見つからなかった場合は空欄にします
+            def_sn = numbers[0] if len(numbers) > 0 else ""
+            def_m3 = numbers[1] if len(numbers) > 1 else ""
+            def_lit = numbers[2] if len(numbers) > 2 else ""
+
+            sn = st.text_input("1. 製造番号", value=def_sn, placeholder="207649など")
+            main_val = st.text_input("2. 指針値 (m3)", value=def_m3, placeholder="0368.7など")
+            lit_val = st.text_input("3. アナログ (L)", value=def_lit, placeholder="85など")
+            
+            if st.form_submit_button("✅ この内容で確定"):
+                st.balloons()
+                st.code(f"【記録】番号:{sn} / 指針:{main_val} / アナログ:{lit_val}")
+    elif img_file:
+        st.warning("まだ解析されていません。『AIで数字を抽出する』ボタンを押してください。")
