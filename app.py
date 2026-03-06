@@ -3,13 +3,12 @@ import google.generativeai as genai
 from PIL import Image
 import io
 
-# --- 🔑 Gemini APIの設定（エラー修正：呼び名をシンプルに） ---
-GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dYー" # ここはそのまま
-genai.configure(api_key=GOOGLE_API_KEY)
+# --- 🔑 Gemini APIの設定（503エラー対策版） ---
+GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" # ここはそのまま
+# 🌟 'transport="rest"' を追加するのが解決の決め手です！
+genai.configure(api_key=GOOGLE_API_KEY, transport='rest')
 
-# 'models/' を取って、シンプルに 'gemini-1.5-flash' にします
-model = genai.GenerativeModel('gemini-1.5-flash')
-
+model = genai.GenerativeModel('gemini-1.5-flash'
 st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
 st.title("🤖 Gemini 3 搭載・高精度検針")
 
