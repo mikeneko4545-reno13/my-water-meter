@@ -6,7 +6,9 @@ import io
 # --- 🔑 Gemini APIの設定 ---
 GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY"
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+
+# モデル名を 'models/gemini-1.5-flash' に変更（これが一番確実です）
+model = genai.GenerativeModel('models/gemini-1.5-flash')
 
 st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
 st.title("🤖 Gemini 3 搭載・高精度検針")
