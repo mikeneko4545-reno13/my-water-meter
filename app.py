@@ -1,61 +1,48 @@
 import streamlit as st
-import cv2
-import numpy as np
-import pytesseract
 from PIL import Image
 
 st.set_page_config(page_title="水道検針AI", page_icon="🚰")
-st.title("🚰 水道検針 AIアシスタント")
+st.title("🚰 水道検針 記録アシスタント")
 
-st.info("💡 撮影後の『回転』が、精度100%への近道です！")
+st.info("💡 1181.283 のような複雑な数字も、見たまま入れるだけで自動計算します！")
 
-img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'])
+# 写真のアップロード（固定値に惑わされないよう毎回クリア）
+img_file = st.file_uploader("📂 写真をアップロード", type=['png', 'jpg', 'jpeg'], key="meter_up")
 
 if img_file:
-    pil_img = Image.open(img_file)
+    st.image(img_file, caption="解析対象のメーター", use_container_width=True)
+
+# --- 📝 5項目スロット入力 ---
+with st.form("meter_pro_form"):
+    st.subheader("📝 メーターの見た目通りに入力")
     
-    # --- 🔄 角度調整機能 ---
-    # 製造番号が斜めだとAIが読めないため、スライダーを追加
-    st.subheader("1. 向きを調整してください")
-    angle = st.slider("数字が水平になるように回転", -180, 180, 0)
-    rotated_img = pil_img.rotate(angle)
-    st.image(rotated_img, caption="調整後の画像", use_container_width=True)
+    # 1. 製造番号（固定値 207649 はもう出ません）
+    sn = st.text_input("1. 製造番号", placeholder="例：377002")
+    
+    st.write("--- 指針値の入力 ---")
+    col1, col2 = st.columns(2)
+    with col1:
+        # 1181 の部分
+        black = st.number_input("2. 黒い数字 (m3)", value=0, step=1)
+        # 2 の部分
+        red = st.number_input("3. 赤い数字 (0.1)", value=0, max_value=9)
+    with col2:
+        # 8 の部分
+        analog_10 = st.number_input("4. 10Lの針 (0.01)", value=0, max_value=9)
+        # 3 の部分
+        analog_1 = st.number_input("5. 1Lの針 (0.001)", value=0, max_value=9)
 
-    if st.button("🔍 この角度で解析実行"):
-        img_array = np.array(rotated_img)
-        img_cv = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-        
-        with st.spinner('AIが読み取り中...'):
-            # 画像処理：白黒をはっきりさせてAIが見やすくする
-            gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-            thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-            
-            # OCR実行：数字のみを狙い撃ち
-            custom_config = r'--oem 3 --psm 11 -c tessedit_char_whitelist=0123456789'
-            detected_text = pytesseract.image_to_string(thresh, config=custom_config)
-            
-            # 6桁の数字を探す
-            import re
-            found = re.findall(r'\d{6}', detected_text)
-            ai_sn = found[0] if found else "".join(filter(str.isdigit, detected_text))[:6]
-
-            st.success("解析が完了しました！内容を確認してください。")
-
-            # --- 📝 入力・修正フォーム ---
-            with st.form("result_form"):
-                st.subheader("📝 検針データの記録")
+    # 🌟 自動計算： 1181 + .2 + .08 + .003 = 1181.283
+    final_val = f"{black}.{red}{analog_10}{analog_1}"
+    
+    st.divider()
+    st.write("### 📊 確定する検針値")
+    st.write(f"# **{final_val}** m³")
+    
+    if st.form_submit_button("✅ 確定してKeep用テキストを作る"):
+        st.balloons()
+        # Google Keepにそのまま貼れる形式
+        keep_format = f"【水道検針データ】\n製造番号：{sn}\n指針：{final_val} m3"
+        st.code(keep_format, language="text")
+        st.success("↑上の文字をコピーしてGoogle Keepに貼り付けてください！")
                 
-                # AIの判定結果を表示しつつ、手動で直せるようにする
-                final_sn = st.text_input("1. 製造番号（AI判定）", value=ai_sn if ai_sn else "207649")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    # 画像から読み取れる指針値をデフォルト値に設定
-                    main_val = st.number_input("2. 指針値 (m3)", value=31)
-                with col2:
-                    # アナログの針（10L=6, 1L=2）の合計値を設定
-                    lit_val = st.number_input("3. アナログ (L)", value=62)
-                
-                if st.form_submit_button("✅ この内容で確定して保存"):
-                    st.balloons()
-                    st.success(f"保存完了：製造番号[{final_sn}] / 検針値[{main_val}.{lit_val:03} m3]")
