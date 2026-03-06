@@ -2,13 +2,13 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import io
-
-# --- 🔑 Gemini APIの設定（503エラー対策版） ---
+# --- 🔑 Gemini APIの設定（2026年最新モデル名に修正） ---
 GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" # ここはそのまま
 # 🌟 'transport="rest"' を追加するのが解決の決め手です！
-genai.configure(api_key=GOOGLE_API_KEY,transport='rest')
+genai.configure(api_key=GOOGLE_API_KEY, transport='rest')
+# モデル名を最新の 'gemini-3-flash' に変更します
+model = genai.GenerativeModel('gemini-3-flash')
 
-model = genai.GenerativeModel('gemini-1.5-flash')
 st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
 st.title("🤖 Gemini 3 搭載・高精度検針")
 
