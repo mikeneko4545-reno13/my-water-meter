@@ -4,67 +4,56 @@ from PIL import Image
 import io
 
 # --- 🔑 Gemini APIの設定 ---
-# 先ほど保存したキーをここに入れてください
 GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY"
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash') # Gemini 3相当の最新モデル
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
 st.title("🤖 Gemini 3 搭載・高精度検針")
 
-st.info("💡 OPPO Reno13のカメラで撮った写真をGeminiがプロの目で解析します。")
+st.info("💡 1L針から順番に読み取る「渦巻きロジック」をAIに教えてあります！")
 
 img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'])
 
 if img_file:
     pil_img = Image.open(img_file)
-    st.image(pil_img, caption="解析中の画像", use_container_width=True)
+    st.image(pil_img, caption="解析対象の画像", use_container_width=True)
 
-    if st.button("🔍 Gemini 3 で超高精度スキャン"):
-        with st.spinner('Geminiがメーターを熟考しています...'):
-            # 画像をAIが読める形式に変換
+    if st.button("🔍 Gemini 3 で解析実行"):
+        with st.spinner('Geminiがメーターを熟考中...'):
             img_byte_arr = io.BytesIO()
             pil_img.save(img_byte_arr, format='JPEG')
             img_data = img_byte_arr.getvalue()
 
-            # --- 🧠 AIへの指示（プロンプト） ---
-            # あなたの「渦巻きロジック」をAIに命令として組み込みました！
+            # AIへの詳細な指示
             prompt = """
-            # --- 🧠 AIへの指示（プロンプトをより具体的に！） ---
-            prompt = """
-            # --- 🧠 AIへの指示（エラー防止版） ---
-            prompt = """
-            Read the water meter values accurately as a professional inspector.
-            
-            RULES:
-            - Black digits: Main reading (m3).
-            - Red digit: The single digit to the right of black digits (0.1).
-            - 10L dial: The analog needle for 0.01.
-            - 1L dial: The smallest analog needle for 0.001.
-            
-            Ignore engraved serial numbers.
-            Focus on the rotating wheels and needles.
-            
-            FORMAT (Return this format only):
-            Black:xxxx
-            Red:x
-            10L:x
-            1L:x
+            You are a professional water meter reader. 
+            Analyze the image and extract the following 4 values:
+            1. 1L Dial (Smallest red needle): 0-9
+            2. 10L Dial (Red needle): 0-9
+            3. Red Digit (0.1 position): 0-9
+            4. Black Digits (Main m3 reading): 4 or 5 digits
+
+            Rules:
+            - Ignore the engraved serial number.
+            - Focus on the circular dials and the rotating numbers.
+            - If a digit is between two numbers, pick the smaller one unless it's a clear carry-over.
+
+            Format your response exactly like this:
+            Black: [number]
+            Red: [number]
+            10L: [number]
+            1L: [number]
             """
 
-            # AIに解析を依頼
             response = model.generate_content([prompt, {'mime_type': 'image/jpeg', 'data': img_data}])
-            res_text = response.text
-            st.write("--- AIの解析思考 ---")
-            st.write(res_text)
+            st.markdown("### 🤖 AIの判定結果")
+            st.code(response.text)
+            st.success("↑この結果を下のフォームに入力・確認してください。")
 
-            # --- 📝 自動入力フォームへの反映（簡易抽出） ---
-            # 解析結果から数字を抜き出す処理（後ほどさらに洗練させましょう）
-            st.success("解析完了！下のフォームで最終確認してください。")
-
-# --- 📝 確定入力フォーム（昨日作った使いやすい形を維持） ---
+# --- 📝 最終確認フォーム（渦巻きロジック） ---
 with st.form("final_confirm"):
-    st.subheader("📝 最終確認と修正")
+    st.subheader("📝 最終確認（小さい単位から順に）")
     col1, col2 = st.columns(2)
     with col1:
         v1 = st.number_input("1. 【1Lの針】", value=0, max_value=9)
@@ -74,8 +63,8 @@ with st.form("final_confirm"):
         v_black = st.number_input("4. 【黒い数字】", value=0, step=1)
     
     final_val = f"{v_black}.{v_red}{v10}{v1}"
-    st.write(f"### 📊 確定検針値: **{final_val}** m³")
+    st.write(f"## 📊 確定指針: **{final_val}** m³")
     
-    if st.form_submit_button("✅ 確定して保存"):
+    if st.form_submit_button("✅ 確定して保存用テキスト作成"):
         st.balloons()
-        st.code(f"【検針完了】\n指針：{final_val} m3")
+        st.code(f"【水道検針データ】\n指針：{final_val} m3", language="text")
