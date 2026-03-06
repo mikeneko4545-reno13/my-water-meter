@@ -37,6 +37,7 @@ if input_file:
         st.image(denoised, caption="AIが読み取っている映像（加工後）", use_container_width=True)
         
         # 🌟 OCR実行（1行読み取りモード）
+        # 数字と一部の記号以外を無視させます
         custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789'
         detected_text = pytesseract.image_to_string(denoised, config=custom_config)
         
