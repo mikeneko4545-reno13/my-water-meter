@@ -6,7 +6,7 @@ import io
 # --- 🔑 Gemini APIの設定（503エラー対策版） ---
 GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" # ここはそのまま
 # 🌟 'transport="rest"' を追加するのが解決の決め手です！
-genai.configure(api_key=GOOGLE_API_KEY, transport='rest')
+genai.configure(api_key=GOOGLE_API_KEY,transport='rest')
 
 model = genai.GenerativeModel('gemini-1.5-flash'
 st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
