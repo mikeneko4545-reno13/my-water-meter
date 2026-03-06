@@ -1,4 +1,4 @@
-streamlit
-google-generativeaistreamlit
-pytesseract
-Pillow
+Error installing requirements.
+Click "Manage App" and consult the terminal for more details.
+
+If you still have questions, leave a message in our forums and we will get back to you ASAP.
