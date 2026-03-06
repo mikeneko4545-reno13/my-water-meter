@@ -2,46 +2,62 @@ import streamlit as st
 import google.generativeai as genai
 from PIL import Image
 import io
-# --- 🔑 Gemini APIの設定（2026年最新モデル名に修正） ---
-GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" # ここはそのまま
-# 🌟 'transport="rest"' を追加するのが解決の決め手です！
+
+# --- 1. APIと通信の設定 ---
+# あなたのキーをここに貼り付けてください
+GOOGLE_API_KEY = "AIzaSyBQHs3k78USv4mum1gWNPcQnR2IvLUk2dY" 
+
+# 通信方式を安定した 'rest' に固定
 genai.configure(api_key=GOOGLE_API_KEY, transport='rest')
-# モデル名を最新の 'gemini-3-flash' に変更します
-model = genai.GenerativeModel('gemini-3-flash')
 
-st.set_page_config(page_title="Gemini 水道検針AI", page_icon="🤖")
-st.title("🤖 Gemini 3 搭載・高精度検針")
+# --- 2. 利用可能なモデルの自動検出 ---
+# エラーを回避するため、あなたの環境で動くモデルを自動で見つけます
+try:
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    # 'gemini-1.5-flash' か 'gemini-2.0-flash'、あるいはリストの先頭を選択
+    target = ""
+    for m in available_models:
+        if "gemini-1.5-flash" in m: target = m; break
+    if not target: target = available_models[0]
+    
+    model = genai.GenerativeModel(target)
+except Exception as e:
+    st.error(f"API接続エラー: {e}")
+    st.stop()
 
-st.info("💡 あなたの『渦巻きロジック』をAIに完全伝承しました！")
+# --- 3. アプリの画面構成 ---
+st.set_page_config(page_title="最強検針AI Gemini 3", page_icon="🤖")
+st.title("🤖 最強検針AI Gemini 3")
+st.caption(f"現在稼働中のモデル: {target}")
+
+st.info("💡 1L針 → 10L針 → 赤い数字 → 黒い数字 の順に読み取ります。")
 
 img_file = st.file_uploader("📂 メーターの写真をアップ", type=['png', 'jpg', 'jpeg'])
 
 if img_file:
     pil_img = Image.open(img_file)
-    st.image(pil_img, caption="解析対象の画像", use_container_width=True)
+    st.image(pil_img, caption="スキャン対象", use_container_width=True)
 
-    if st.button("🔍 Gemini 3 で解析実行"):
-        with st.spinner('Geminiがメーターを熟考中...'):
+    if st.button("🔍 AI解析を実行"):
+        with st.spinner('Geminiが画像を精査しています...'):
+            # 画像の変換
             img_byte_arr = io.BytesIO()
             pil_img.save(img_byte_arr, format='JPEG')
             img_data = img_byte_arr.getvalue()
 
-            # --- 🧠 AIへの最強の指示（プロンプト） ---
+            # AIへの指示（渦巻きロジックを徹底）
             prompt = """
-            You are a professional water meter reader. 
-            Analyze the image carefully and extract exactly these 4 values using 'Vortex Logic' (Smallest to Largest):
+            あなたはプロの水道検針員です。
+            以下の『渦巻きロジック』に従って、画像から数値を抽出してください。
 
-            1. 1L Dial (Smallest analog needle at the bottom right)
-            2. 10L Dial (The other analog needle)
-            3. Red Digit (The first digit to the right of the main display, 0.1 position)
-            4. Black Digits (The main large counter in m3)
+            1. 1L Dial (一番右下の小さな赤い針): 0-9の数字
+            2. 10L Dial (その隣の赤い針): 0-9の数字
+            3. Red Digit (メイン表示の右端、赤い枠の数字): 0-9
+            4. Black Digits (メイン表示の左側、黒い大きな数字): 4桁または5桁
 
-            IMPORTANT RULES:
-            - IGNORE the engraved Serial Number (it often looks like 377002 or 207649).
-            - Focus only on the rotating digits and needles.
-            - If a digit is between numbers, choose the lower one.
+            ※注意：金属に彫られた製造番号（Serial Number）は絶対に無視してください。
+            回答は以下の形式のみで出力してください。
 
-            FORMAT (Return this only):
             Black:[number]
             Red:[number]
             10L:[number]
@@ -52,25 +68,27 @@ if img_file:
                 response = model.generate_content([prompt, {'mime_type': 'image/jpeg', 'data': img_data}])
                 st.markdown("### 🤖 AIの判定結果")
                 st.code(response.text)
-                st.success("スキャン成功！結果を下のフォームで確認してください。")
+                st.success("解析成功！下のフォームで数値を最終確認してください。")
             except Exception as e:
-                st.error(f"エラーが発生しました: {e}")
+                st.error(f"解析中にエラーが発生しました: {e}")
 
-# --- 📝 確定フォーム（渦巻きロジック） ---
-with st.form("final_confirm"):
-    st.subheader("📝 最終確認（小さい単位から順に）")
-    col1, col2 = st.columns(2)
-    with col1:
-        v1 = st.number_input("1. 【1Lの針】", value=0, max_value=9)
-        v10 = st.number_input("2. 【10Lの針】", value=0, max_value=9)
-    with col2:
-        v_red = st.number_input("3. 【赤い数字】", value=0, max_value=9)
-        v_black = st.number_input("4. 【黒い数字】", value=0, step=1)
+# --- 4. 最終確認フォーム ---
+st.divider()
+with st.form("input_form"):
+    st.subheader("📝 数値の最終確認")
+    c1, c2 = st.columns(2)
+    with c1:
+        v1 = st.number_input("① 1Lの針", 0, 9, 0)
+        v10 = st.number_input("② 10Lの針", 0, 9, 0)
+    with c2:
+        v_red = st.number_input("③ 赤い数字", 0, 9, 0)
+        v_black = st.number_input("④ 黒い数字", 0, 999999, 0)
     
-    # 計算式
-    final_val = f"{v_black}.{v_red}{v10}{v1}"
-    st.write(f"## 📊 確定指針: **{final_val}** $m^3$")
+    # 検針値の計算
+    result_val = f"{v_black}.{v_red}{v10}{v1}"
     
-    if st.form_submit_button("✅ 確定して保存"):
+    if st.form_submit_button("✅ この値で確定"):
         st.balloons()
-        st.code(f"【水道検針データ】\n指針：{final_val} m3", language="text")
+        st.write("### 📊 最終確定値")
+        st.success(f"指針： **{result_val}** $m^3$")
+        st.code(f"【検針記録】\n指針：{result_val} m3", language="text")
