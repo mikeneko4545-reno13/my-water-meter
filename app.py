@@ -7,7 +7,7 @@ import re
 # --- 1. APIと通信の設定（安全・安定版） ---
 # StreamlitのSecretsからキーを読み込みます
 try:
-    GOOGLE_API_KEY = st.secrets["AIzaSyChDJ1Ai_DSioph8ZYC8teioO718uROmKA"]
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except KeyError:
     st.error("StreamlitのSecretsに 'GOOGLE_API_KEY' が設定されていません。")
     st.stop()
@@ -120,4 +120,6 @@ with st.form("input_form"):
         st.balloons()
         st.write("### 📊 最終確定値")
         st.success(f"指針： **{result_val}** $m^3$")
-        st.code(f"【検針記録】\n指針：{result_val} m3", language="text")
+        st.code(f"【検針記録】\n指針：{result_val} m3", language="text")エキスター
+    
+ 
