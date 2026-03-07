@@ -7,7 +7,7 @@ import re
 # --- 1. APIと通信の設定（安全・安定版） ---
 # StreamlitのSecretsからキーを読み込みます
 try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+    GOOGLE_API_KEY = st.secrets["AIzaSyChDJ1Ai_DSioph8ZYC8teioO718uROmKA"]
 except KeyError:
     st.error("StreamlitのSecretsに 'GOOGLE_API_KEY' が設定されていません。")
     st.stop()
